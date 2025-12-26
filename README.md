@@ -1,26 +1,29 @@
 # birdeye-go
 
+[![CI](https://github.com/Laminar-Bot/birdeye-go/actions/workflows/ci.yml/badge.svg)](https://github.com/Laminar-Bot/birdeye-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/Laminar-Bot/birdeye-go.svg)](https://pkg.go.dev/github.com/Laminar-Bot/birdeye-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Laminar-Bot/birdeye-go)](https://goreportcard.com/report/github.com/Laminar-Bot/birdeye-go)
+[![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)](https://github.com/Laminar-Bot/birdeye-go)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A Go client for the [Birdeye](https://birdeye.so) API - comprehensive DeFi analytics and data for Solana.
 
 ## Features
 
-- 💰 **Token Prices** - Real-time and historical prices
-- 📊 **Token Analytics** - Volume, liquidity, holder stats
-- 🔒 **Security Info** - LP status, authority checks, holder concentration
-- 👛 **Wallet Tracking** - Portfolio and transaction history
-- 🏆 **Top Traders** - Discover profitable wallets
-- 📈 **OHLCV Data** - Candlestick data for charting
+- **Token Prices** - Real-time prices with `decimal.Decimal` precision
+- **Token Security** - Authority checks, holder concentration, Token-2022 detection
+- **Token Overview** - Market data, liquidity, volume, holder counts
+- **Automatic Retries** - Exponential backoff for rate limits and server errors
+- **Flexible Configuration** - Functional options pattern for clean API
 
 ## Installation
+
 ```bash
 go get github.com/Laminar-Bot/birdeye-go
 ```
 
 ## Quick Start
+
 ```go
 package main
 
@@ -29,122 +32,199 @@ import (
     "fmt"
     "log"
 
-    "github.com/Laminar-Bot/birdeye-go"
+    birdeye "github.com/Laminar-Bot/birdeye-go"
 )
 
 func main() {
-    client := birdeye.NewClient(birdeye.Config{
-        APIKey: "your-api-key",
-    })
+    // Create client with API key
+    client, err := birdeye.NewClient("your-api-key")
+    if err != nil {
+        log.Fatal(err)
+    }
 
     // Get token price
     price, err := client.GetPrice(context.Background(), "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263")
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Printf("BONK: $%f\n", price.Value)
+    fmt.Printf("BONK: $%s\n", price.Value.String())
 }
 ```
 
-## Token Security & Liquidity
+## Configuration Options
+
 ```go
-// Check if a token is safe
-security, err := client.GetTokenLiquidity(ctx, tokenAddress)
+import (
+    "time"
+    birdeye "github.com/Laminar-Bot/birdeye-go"
+)
+
+// Configure with options
+client, err := birdeye.NewClient("your-api-key",
+    birdeye.WithTimeout(30*time.Second),
+    birdeye.WithMaxRetries(5),
+    birdeye.WithBaseURL("https://custom-proxy.example.com"),
+)
+```
+
+### Available Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithTimeout(d)` | HTTP request timeout | 10 seconds |
+| `WithMaxRetries(n)` | Maximum retry attempts | 3 |
+| `WithBaseURL(url)` | Custom API base URL | `https://public-api.birdeye.so` |
+| `WithLogger(l)` | Custom logger implementation | No-op logger |
+| `WithHTTPClient(c)` | Custom `*http.Client` | Default with timeout |
+
+## Token Prices
+
+```go
+// Get single token price
+price, err := client.GetPrice(ctx, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
 if err != nil {
     log.Fatal(err)
 }
+fmt.Printf("USDC: $%s\n", price.Value.String())
+fmt.Printf("24h Change: %s%%\n", price.PriceChange24h.String())
 
-fmt.Printf("Mint Authority Revoked: %v\n", security.IsMintAuthorityRevoked())
-fmt.Printf("Freeze Authority Revoked: %v\n", security.IsFreezeAuthorityRevoked())
-fmt.Printf("LP Burned: %.1f%%\n", security.LPBurnedPct)
-fmt.Printf("Total Liquidity: $%.2f\n", security.TotalLiquidityUSD)
-fmt.Printf("Top 10 Holders: %.1f%%\n", security.Top10HolderPercent)
-```
-
-## Wallet Analysis
-```go
-// Get wallet portfolio
-portfolio, err := client.GetWalletPortfolio(ctx, walletAddress)
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Total Value: $%.2f\n", portfolio.TotalUSD)
-for _, token := range portfolio.Items {
-    fmt.Printf("  %s: $%.2f\n", token.Symbol, token.ValueUSD)
-}
-
-// Get wallet transactions
-txs, err := client.GetWalletTransactions(ctx, walletAddress, &birdeye.TxOptions{
-    Limit:  50,
-    TxType: "swap",
-})
-```
-
-## Top Traders
-```go
-// Find successful traders of a token
-traders, err := client.GetTopTraders(ctx, tokenAddress, &birdeye.TopTradersRequest{
-    TimeFrame: "24h",
-    SortBy:    "pnl",
-    Limit:     20,
-})
-
-for _, trader := range traders {
-    fmt.Printf("%s: PnL $%.2f (%.1f%% win rate)\n", 
-        trader.Address[:8], trader.PnL, trader.WinRate)
-}
-```
-
-## Price History (OHLCV)
-```go
-// Get candlestick data
-ohlcv, err := client.GetOHLCV(ctx, tokenAddress, &birdeye.OHLCVRequest{
-    TimeFrom: time.Now().Add(-24 * time.Hour).Unix(),
-    TimeTo:   time.Now().Unix(),
-    Type:     "15m", // 1m, 5m, 15m, 1H, 4H, 1D
-})
-
-for _, candle := range ohlcv.Items {
-    fmt.Printf("%s O:%.6f H:%.6f L:%.6f C:%.6f V:%.0f\n",
-        time.Unix(candle.UnixTime, 0).Format("15:04"),
-        candle.Open, candle.High, candle.Low, candle.Close, candle.Volume)
-}
-```
-
-## Batch Price Queries
-```go
-// Get multiple prices efficiently
+// Get multiple prices (automatically batched for >100 tokens)
 prices, err := client.GetMultiplePrices(ctx, []string{
     "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
     "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",
-    "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
 })
-
 for addr, price := range prices {
-    fmt.Printf("%s: $%f\n", addr[:8], price.Value)
+    fmt.Printf("%s: $%s\n", addr[:8], price.String())
 }
 ```
 
-## Configuration
+## Token Security
+
+Check for rug pull indicators:
+
 ```go
-client := birdeye.NewClient(birdeye.Config{
-    APIKey:     "your-api-key",
-    BaseURL:    "https://public-api.birdeye.so", // default
-    TimeoutSec: 30,
-    Chain:      "solana", // default, also supports "ethereum", "bsc", etc.
-})
+security, err := client.GetTokenSecurity(ctx, tokenAddress)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Check authority status (active authority = higher risk)
+if security.HasMintAuthority() {
+    fmt.Println("WARNING: Token has active mint authority")
+}
+if security.HasFreezeAuthority() {
+    fmt.Println("WARNING: Token has active freeze authority")
+}
+
+// Check holder concentration
+fmt.Printf("Top 10 Holders: %s%%\n", security.Top10HolderPercent)
+
+// Token-2022 specific checks
+if security.IsToken2022 && security.TransferFeeEnable {
+    fmt.Printf("Transfer Fee: %d bps\n", security.TransferFeeData.TransferFeeBPS)
+}
+```
+
+## Token Overview
+
+Get comprehensive market data:
+
+```go
+overview, err := client.GetTokenOverview(ctx, tokenAddress)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Token: %s (%s)\n", overview.Name, overview.Symbol)
+fmt.Printf("Price: $%s\n", overview.Price.String())
+fmt.Printf("Liquidity: $%s\n", overview.Liquidity.String())
+fmt.Printf("24h Volume: $%s\n", overview.Volume24hUSD.String())
+fmt.Printf("Market Cap: $%s\n", overview.MarketCap.String())
+fmt.Printf("Holders: %d\n", overview.Holder)
+
+// Social links (if available)
+if overview.Extensions != nil {
+    if overview.Extensions.Twitter != "" {
+        fmt.Printf("Twitter: %s\n", overview.Extensions.Twitter)
+    }
+}
+```
+
+## Error Handling
+
+All API errors are returned as `*APIError` with helpful methods:
+
+```go
+price, err := client.GetPrice(ctx, "invalid-token")
+if err != nil {
+    if apiErr, ok := birdeye.IsAPIError(err); ok {
+        switch {
+        case apiErr.IsNotFound():
+            fmt.Println("Token not found")
+        case apiErr.IsRateLimited():
+            fmt.Println("Rate limited - slow down")
+        case apiErr.IsServerError():
+            fmt.Println("Birdeye server error")
+        case apiErr.IsClientError():
+            fmt.Printf("Bad request: %s\n", apiErr.Message)
+        }
+    }
+    return
+}
+```
+
+## Custom Logging
+
+Implement the `Logger` interface for custom logging:
+
+```go
+type Logger interface {
+    Debug(msg string, keysAndValues ...interface{})
+    Info(msg string, keysAndValues ...interface{})
+    Warn(msg string, keysAndValues ...interface{})
+    Error(msg string, keysAndValues ...interface{})
+}
+
+// Example with zap
+type zapAdapter struct{ *zap.SugaredLogger }
+
+func (z *zapAdapter) Debug(msg string, kv ...interface{}) { z.Debugw(msg, kv...) }
+func (z *zapAdapter) Info(msg string, kv ...interface{})  { z.Infow(msg, kv...) }
+func (z *zapAdapter) Warn(msg string, kv ...interface{})  { z.Warnw(msg, kv...) }
+func (z *zapAdapter) Error(msg string, kv ...interface{}) { z.Errorw(msg, kv...) }
+
+client, _ := birdeye.NewClient("api-key",
+    birdeye.WithLogger(&zapAdapter{sugar}),
+)
 ```
 
 ## Rate Limits
 
-Birdeye has API rate limits based on your plan. This client includes automatic retry with backoff for rate limit errors.
+Birdeye enforces API rate limits based on your plan. This client:
+
+- Automatically retries on 429 (rate limit) responses
+- Uses exponential backoff between retries
+- Respects context cancellation
+
 ```go
-client := birdeye.NewClient(birdeye.Config{
-    APIKey:        "your-api-key",
-    MaxRetries:    3,
-    RetryDelaySec: 1,
-})
+// Configure retry behavior
+client, _ := birdeye.NewClient("api-key",
+    birdeye.WithMaxRetries(5),  // Up to 5 retry attempts
+)
+```
+
+## Financial Precision
+
+All price and amount values use `decimal.Decimal` from [shopspring/decimal](https://github.com/shopspring/decimal) to avoid floating-point precision issues:
+
+```go
+// Prices are decimal.Decimal, not float64
+price := overview.Price                    // decimal.Decimal
+liquidity := overview.Liquidity            // decimal.Decimal
+
+// Safe arithmetic
+total := price.Mul(decimal.NewFromInt(100))
+formatted := price.StringFixed(8)  // "0.00001234"
 ```
 
 ## Contributing
