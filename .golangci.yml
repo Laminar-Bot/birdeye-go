@@ -15,23 +15,21 @@ linters:
     - misspell
     - unconvert
     - prealloc
+  settings:
+    misspell:
+      locale: US
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
 
 formatters:
   enable:
     - gofmt
     - goimports
-
-linters-settings:
-  misspell:
-    locale: US
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-
-formatters-settings:
-  goimports:
-    local-prefixes:
-      - github.com/Laminar-Bot/birdeye-go
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Laminar-Bot/birdeye-go
 
 issues:
   max-issues-per-linter: 0
