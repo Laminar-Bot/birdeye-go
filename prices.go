@@ -84,6 +84,17 @@ func (c *Client) GetMultiplePrices(ctx context.Context, addresses []string) (map
 		return make(map[string]decimal.Decimal), nil
 	}
 
+	// Validate no empty addresses in the list.
+	for _, addr := range addresses {
+		if addr == "" {
+			return nil, &APIError{
+				StatusCode: 400,
+				Message:    "address list contains empty string",
+				Path:       "/defi/multi_price",
+			}
+		}
+	}
+
 	const batchSize = 100
 	result := make(map[string]decimal.Decimal, len(addresses))
 

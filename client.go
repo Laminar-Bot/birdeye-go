@@ -274,8 +274,9 @@ func (c *Client) doGet(ctx context.Context, path string, params url.Values) ([]b
 //	}
 func parseResponse[T any](body []byte) (*T, error) {
 	var resp struct {
-		Success bool `json:"success"`
-		Data    T    `json:"data"`
+		Success bool   `json:"success"`
+		Message string `json:"message,omitempty"`
+		Data    T      `json:"data"`
 	}
 
 	if err := json.Unmarshal(body, &resp); err != nil {
@@ -283,6 +284,9 @@ func parseResponse[T any](body []byte) (*T, error) {
 	}
 
 	if !resp.Success {
+		if resp.Message != "" {
+			return nil, fmt.Errorf("birdeye api error: %s", resp.Message)
+		}
 		return nil, errors.New("birdeye api returned success=false")
 	}
 
